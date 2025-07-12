@@ -1,0 +1,25 @@
+{
+  "files": {
+    "main.css": "/FilmFounder1/static/css/main.4840469b.css",
+    "main.js": "/FilmFounder1/static/js/main.471e0dc8.js",
+    "static/js/471.b5c0393b.chunk.js": "/FilmFounder1/static/js/471.b5c0393b.chunk.js",
+    "static/js/382.f360c84f.chunk.js": "/FilmFounder1/static/js/382.f360c84f.chunk.js",
+    "static/css/546.53036aaa.chunk.css": "/FilmFounder1/static/css/546.53036aaa.chunk.css",
+    "static/js/546.721a6b84.chunk.js": "/FilmFounder1/static/js/546.721a6b84.chunk.js",
+    "static/js/186.168a63bb.chunk.js": "/FilmFounder1/static/js/186.168a63bb.chunk.js",
+    "static/js/316.a1b4ba53.chunk.js": "/FilmFounder1/static/js/316.a1b4ba53.chunk.js",
+    "index.html": "/FilmFounder1/index.html",
+    "main.4840469b.css.map": "/FilmFounder1/static/css/main.4840469b.css.map",
+    "main.471e0dc8.js.map": "/FilmFounder1/static/js/main.471e0dc8.js.map",
+    "471.b5c0393b.chunk.js.map": "/FilmFounder1/static/js/471.b5c0393b.chunk.js.map",
+    "382.f360c84f.chunk.js.map": "/FilmFounder1/static/js/382.f360c84f.chunk.js.map",
+    "546.53036aaa.chunk.css.map": "/FilmFounder1/static/css/546.53036aaa.chunk.css.map",
+    "546.721a6b84.chunk.js.map": "/FilmFounder1/static/js/546.721a6b84.chunk.js.map",
+    "186.168a63bb.chunk.js.map": "/FilmFounder1/static/js/186.168a63bb.chunk.js.map",
+    "316.a1b4ba53.chunk.js.map": "/FilmFounder1/static/js/316.a1b4ba53.chunk.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.4840469b.css",
+    "static/js/main.471e0dc8.js"
+  ]
+}
