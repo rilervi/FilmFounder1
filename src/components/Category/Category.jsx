@@ -12,11 +12,11 @@ const Category = ({ moviesFromCategory, categoryTitle }) => {
 
   const toggleShowItems = () => {
     if (showAll) {
-      setVisibleItems(5);
+      setVisibleItems(5); // Повертаємо до 5 елементів
     } else {
-      setVisibleItems(moviesFromCategory.length);
+      setVisibleItems(moviesFromCategory.length); // Відображаємо всі елементи
     }
-    setShowAll(!showAll);
+    setShowAll(!showAll); // Перемикаємо стан
   };
 
   return (

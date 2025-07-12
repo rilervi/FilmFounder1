@@ -67,6 +67,7 @@ const FilterBar = () => {
           )}
         </div>
         <FormSelect {...register('method')}>
+          {/* <option value="">Оберіть жанр</option> */}
           {sortMethods.map(option => (
             <option key={option.id} value={option.id}>
               {option.name}

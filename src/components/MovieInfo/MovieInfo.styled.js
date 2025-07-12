@@ -102,7 +102,7 @@ export const CastBtn = styled(Link)`
   border-bottom: 2px solid white;
 
   &:hover {
-    border-bottom: 2px solid red;
+    border-bottom: 2px solid yellow;
     color: #ad9236;
   }
 `;
@@ -117,11 +117,11 @@ export const GoBackBtn = styled(Link)`
   color: white;
   background-color: transparent;
 
-  border: 2px solid red;
+  border: 2px solid yellow;
   border-radius: 10px;
 
   &:hover {
     border: 2px solid #ad9236;
-    color: red;
+    color: yellow;
   }
 `;

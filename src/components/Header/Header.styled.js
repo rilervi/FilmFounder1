@@ -51,7 +51,7 @@ export const Logo = styled(NavLink)`
   color: white;
 `;
 export const Acsent = styled.span`
-  color: red;
+  color: yellow;
 `;
 
 export const StyledNav = styled.nav`

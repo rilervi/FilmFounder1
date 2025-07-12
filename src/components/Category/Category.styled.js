@@ -27,7 +27,7 @@ export const ShowMoreBtn = styled.button`
   border-radius: 10px;
 
   &:hover {
-    border: 2px solid red;
+    border: 2px solid yellow;
     color: #ad9236;
   }
 `;

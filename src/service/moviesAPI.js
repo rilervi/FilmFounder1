@@ -28,6 +28,7 @@ export const getWeekTrendMovies = async () => {
 
 export const getTopRated = async () => {
   const { data } = await axios.get(
+    // `https://api.themoviedb.org/3/movie/upcoming?language=uk-UK&page=1&api_key=${API_KEY}`
     `https://api.themoviedb.org/3/movie/top_rated?language=en-US&page=1&api_key=${API_KEY}`
   );
   return data;

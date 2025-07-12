@@ -62,7 +62,11 @@ const MovieInfo = ({ movie, backLinkHref, movieId }) => {
                 Акторський склад <FaPerson />
               </CastBtn>
             </CastWrapper>
-            <ButtonWrapper></ButtonWrapper>
+            <ButtonWrapper>
+              {/* <ActionBtn type="button">
+                До улюблених <MdFavorite className="button-icon" />
+              </ActionBtn> */}
+            </ButtonWrapper>
           </MovieData>
         </InfoWrapper>
 
