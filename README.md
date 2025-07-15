@@ -82,7 +82,7 @@ FilmFounder використовує TMDB API або аналогічне API д
 #### [Науменко Валерія] — Backend Developer (@GitHub-rilervi) 
 тестування, логіка компонування та підтримка інтерфейсу
 
-#### [Кучеренко Яна] — Frontend Developer (Core Logic) (@GitHub-N1azar1)
+#### [Кучеренко Яна] — Frontend Developer (Core Logic) (@GitHub-ynskhr)
 UI/UX дизайн, верстка, адаптивність
 
 ## 📜 Ліцензія
