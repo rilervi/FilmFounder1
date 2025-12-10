@@ -1,0 +1,162 @@
+#include <Arduino.h>
+#include <dronecan.h>
+#include <IWatchdog.h>
+#include <app.h>
+#include <vector>
+#include <simple_dronecanmessages.h>
+#include <uavcan/equipment/esc/Status.h>
+#include <uavcan/equipment/power/BatteryInfo.h>
+
+#define SIG_pin 2
+#define Vcc_pin 3
+#define CAN_SEND_INTERVAL 100UL
+#define SERIAL_SPEED 115200
+
+#define RPM_TIMEOUT 500000UL // 500 мс (0.5 сек). Час, після якого RPM має стати 0.
+
+std::vector<DroneCAN::parameter> custom_parameters = {
+    { "NODEID", UAVCAN_PROTOCOL_PARAM_VALUE_INTEGER_VALUE, 100,  0, 127 },
+    { "PARM_1", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
+    { "PARM_2", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
+    { "PARM_3", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
+    { "PARM_4", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
+    { "PARM_5", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
+    { "PARM_6", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
+    { "PARM_7", UAVCAN_PROTOCOL_PARAM_VALUE_REAL_VALUE,   0.0f, 0.0f, 100.0f },
+};
+
+DroneCAN dronecan;
+
+uint32_t looptime = 0;
+uint16_t rpm = 0;
+
+volatile unsigned long lastPulseTime = 0;
+volatile unsigned long pulsePeriod = 0;
+
+void isr()
+{
+    unsigned long now = micros();
+    
+    if (lastPulseTime != 0) {
+        pulsePeriod = now - lastPulseTime;
+    }
+    lastPulseTime = now;
+}
+
+static void onTransferReceived(CanardInstance *ins, CanardRxTransfer *transfer)
+{
+    switch (transfer->data_type_id)
+    {
+    case UAVCAN_EQUIPMENT_AHRS_MAGNETICFIELDSTRENGTH_ID:
+    {
+        uavcan_equipment_ahrs_MagneticFieldStrength pkt{};
+        uavcan_equipment_ahrs_MagneticFieldStrength_decode(transfer, &pkt);
+        break;
+    }
+    }
+
+    DroneCANonTransferReceived(dronecan, ins, transfer);
+}
+
+static bool shouldAcceptTransfer(const CanardInstance *ins,
+                                 uint64_t *out_data_type_signature,
+                                 uint16_t data_type_id,
+                                 CanardTransferType transfer_type,
+                                 uint8_t source_node_id)
+{
+    if (transfer_type == CanardTransferTypeBroadcast)
+    {
+        switch (data_type_id)
+        {
+        case UAVCAN_EQUIPMENT_AHRS_MAGNETICFIELDSTRENGTH_ID:
+        {
+            *out_data_type_signature = UAVCAN_EQUIPMENT_AHRS_MAGNETICFIELDSTRENGTH_SIGNATURE;
+            return true;
+        }
+        }
+    }
+
+    return false || DroneCANshoudlAcceptTransfer(ins, out_data_type_signature, data_type_id, transfer_type, source_node_id);
+}
+
+void setup()
+{ 	
+    app_setup();
+    IWatchdog.begin(2000000);	
+    Serial.begin(SERIAL_SPEED);
+
+    pinMode(Vcc_pin, OUTPUT);
+    digitalWrite(Vcc_pin, HIGH);
+    pinMode(SIG_pin, INPUT); 	
+    attachInterrupt(digitalPinToInterrupt(SIG_pin), isr, RISING);	
+
+    dronecan.version_major = 1;
+    dronecan.version_minor = 0;
+    dronecan.init(
+        onTransferReceived,	
+        shouldAcceptTransfer,	
+        custom_parameters,
+        "Beyond Robotix Node"
+    );
+    
+    dronecan.setParameter("PARM_1", 50.0f);	
+    Serial.print("PARM_1 value: ");
+    Serial.println(dronecan.getParameter("PARM_1"));
+    
+    Serial.println("High Accuracy RPM Node Initialized.");
+    
+    while (true)
+    {
+        const uint32_t now = millis();
+
+        if (now - looptime >= CAN_SEND_INTERVAL)
+        {
+            looptime = now;
+
+            // 1. БЕЗПЕЧНЕ ЗЧИТУВАННЯ ЗМІННИХ
+            noInterrupts();
+            unsigned long currentPeriod = pulsePeriod;
+            unsigned long currentLastPulseTime = lastPulseTime;
+            interrupts();
+            
+            // 2. РОЗРАХУНОК RPM
+            
+            // Перевірка на зупинку двигуна: якщо останній імпульс був давно, встановлюємо RPM = 0
+            if ((micros() - currentLastPulseTime) > RPM_TIMEOUT) {
+                rpm = 0;
+                // Додатково обнулюємо період, щоб гарантувати, що ми не використаємо старе значення
+                // pulsePeriod = 0; 
+            }
+            // Якщо період виміряно і він ненульовий (тобто двигун обертається)
+            else if (currentPeriod > 0) {
+                // RPM = 60,000,000 / Period_in_microseconds
+                rpm = (uint16_t)(60000000.0f / (float)currentPeriod);
+            }
+            // Якщо currentPeriod = 0, але таймаут не спрацював, це означає, що ми ще чекаємо на другий імпульс.
+            // У цьому випадку, залишаємо попереднє значення RPM (або 0, якщо це перший цикл).
+
+            // 3. НАДСИЛАННЯ UAVCAN ESC STATUS
+            uavcan_equipment_esc_Status esc{};
+            esc.esc_index = 0;
+            esc.rpm = rpm;
+
+            sendUavcanMsg(dronecan.canard, esc);
+
+            // 4. НАДСИЛАННЯ BatteryInfo
+            uavcan_equipment_power_BatteryInfo pkt{};
+            pkt.status = uavcan_equipment_power_BatteryInfo_STATUS_GOOD;	
+            sendUavcanMsg(dronecan.canard, pkt);
+
+            Serial.print("RPM: ");
+            Serial.println(rpm);
+        }
+
+        dronecan.cycle();
+        IWatchdog.reload();
+    }
+}
+
+void loop()
+{
+
+}
