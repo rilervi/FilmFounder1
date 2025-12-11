@@ -1,0 +1,113 @@
+#include <Arduino.h>
+#include <dronecan.h>
+#include <IWatchdog.h>
+#include <app.h>
+#include <vector>
+#include <simple_dronecanmessages.h>
+
+#define SIG_PIN 2
+#define VCC_PIN 3
+ 
+// Відправляємо раз на 3000 мс
+#define SEND_INTERVAL 3000UL
+
+// Якщо імпульсів нема 0.5 сек → RPM = 0
+#define RPM_TIMEOUT 500000UL
+
+DroneCAN dronecan;
+
+volatile unsigned long lastPulseTime = 0;
+volatile unsigned long pulsePeriod = 0;
+
+uint16_t rpm = 0;
+uint32_t lastSend = 0;
+
+// ISR — ультраточне вимірювання періоду
+void IRAM_ATTR isr()
+{
+    unsigned long now = micros();
+
+    if (lastPulseTime != 0) {
+        pulsePeriod = now - lastPulseTime;
+    }
+    lastPulseTime = now;
+}
+
+// Прийом CAN — стандартне
+static void onTransferReceived(CanardInstance* ins, CanardRxTransfer* transfer)
+{
+    DroneCANonTransferReceived(dronecan, ins, transfer);
+}
+
+static bool shouldAcceptTransfer(const CanardInstance *ins,
+                                 uint64_t *out_sig,
+                                 uint16_t data_type_id,
+                                 CanardTransferType transfer_type,
+                                 uint8_t source_node_id)
+{
+    return DroneCANshoudlAcceptTransfer(ins, out_sig, data_type_id,
+                                        transfer_type, source_node_id);
+}
+
+void setup()
+{
+    app_setup();
+    Serial.begin(115200);
+    IWatchdog.begin(2000000);
+
+    // Вмикаємо живлення давача Холла
+    pinMode(VCC_PIN, OUTPUT);
+    digitalWrite(VCC_PIN, HIGH);
+    pinMode(SIG_PIN, INPUT);
+
+    // Ультраточне переривання
+    attachInterrupt(digitalPinToInterrupt(SIG_PIN), isr, RISING);
+
+    // Ініціалізація ноди
+    dronecan.version_major = 1;
+    dronecan.version_minor = 0;
+
+    dronecan.init(onTransferReceived, shouldAcceptTransfer,
+                  {},
+                  "BeyondRobotix RPM Node");
+
+    Serial.println("High Precision RPM Node Started");
+}
+
+void loop()
+{
+    unsigned long now = millis();
+
+    // Обчислення RPM в основному циклі
+    noInterrupts();
+    unsigned long p = pulsePeriod;
+    unsigned long lastT = lastPulseTime;
+    interrupts();
+
+    if ((micros() - lastT) > RPM_TIMEOUT) {
+        rpm = 0; // Двигун зупинився
+    }
+    else if (p > 0) {
+        rpm = (uint16_t)(60000000.0f / (float)p);
+    }
+
+    // Відправляємо раз на 3 секунди
+    if (now - lastSend >= SEND_INTERVAL)
+    {
+        lastSend = now;
+
+        // === DroneCAN RawMessage (без ESC) ===
+        uavcan_protocol_debug_LogMessage msg{};
+        msg.level = 2; // INFO
+        strncpy(msg.text.data, ("RPM: " + String(rpm)).c_str(), msg.text.len());
+        msg.text.len = strlen(msg.text.data);
+
+        sendUavcanMsg(dronecan.canard, msg);
+
+        Serial.print("High precision RPM: ");
+        Serial.println(rpm);
+    }
+
+    dronecan.cycle();
+    IWatchdog.reload();
+}
