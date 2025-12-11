@@ -1,0 +1,123 @@
+#include <Arduino.h>
+#include <dronecan.h>
+#include <IWatchdog.h>
+#include <app.h>
+#include <vector>
+#include <simple_dronecanmessages.h>
+#include <uavcan/equipment/esc/Status.h>
+
+#define SIG_pin 2
+#define Vcc_pin 3
+
+#define CAN_SEND_INTERVAL 100   // частота відправки в автопілот
+#define SERIAL_INTERVAL   3000  // ти просила виводити кожні 3 секунди
+
+#define RPM_TIMEOUT 500000UL    // 0.5s без імпульсу = RPM=0
+#define GLITCH_FILTER 50        // імпульси менше 50 мікросекунд ігноруються
+#define AVG_SAMPLES 10          // усереднення за 10 імпульсів
+
+DroneCAN dronecan;
+
+volatile unsigned long lastPulseTime = 0;
+volatile unsigned long period = 0;
+
+unsigned long periodBuffer[AVG_SAMPLES];
+uint8_t periodIndex = 0;
+bool bufferFilled = false;
+
+unsigned long lastSerial = 0;
+uint16_t rpm = 0;
+
+void IRAM_ATTR isr()
+{
+    unsigned long now = micros();
+
+    unsigned long p = now - lastPulseTime;
+    lastPulseTime = now;
+
+    if (p < GLITCH_FILTER) return; // фільтрація шуму
+
+    period = p;
+    periodBuffer[periodIndex++] = p;
+    if (periodIndex >= AVG_SAMPLES) {
+        periodIndex = 0;
+        bufferFilled = true;
+    }
+}
+
+unsigned long getAveragedPeriod()
+{
+    if (!bufferFilled) return period;
+
+    unsigned long sum = 0;
+    for (uint8_t i = 0; i < AVG_SAMPLES; i++)
+        sum += periodBuffer[i];
+
+    return sum / AVG_SAMPLES;
+}
+
+void setup()
+{
+    app_setup();
+    IWatchdog.begin(2000000);
+
+    Serial.begin(115200);
+
+    pinMode(Vcc_pin, OUTPUT);
+    digitalWrite(Vcc_pin, HIGH);
+
+    pinMode(SIG_pin, INPUT);
+    attachInterrupt(digitalPinToInterrupt(SIG_pin), isr, RISING);
+
+    dronecan.version_major = 1;
+    dronecan.version_minor = 0;
+
+    dronecan.init(
+        nullptr,
+        nullptr,
+        {},
+        "Beyond Robotix UltraPrecision RPM Node"
+    );
+
+    Serial.println("Ultra-Precision RPM Node started.");
+}
+
+void loop()
+{
+    unsigned long now = millis();
+
+    // розрахунок RPM
+    noInterrupts();
+    unsigned long last = lastPulseTime;
+    unsigned long avgPeriod = getAveragedPeriod();
+    interrupts();
+
+    if ((micros() - last) > RPM_TIMEOUT)
+        rpm = 0;
+    else if (avgPeriod > 0)
+        rpm = 60000000UL / avgPeriod;
+
+    // відправка в автопілот
+    static unsigned long lastCan = 0;
+    if (now - lastCan >= CAN_SEND_INTERVAL)
+    {
+        lastCan = now;
+
+        uavcan_equipment_esc_Status esc{};
+        esc.esc_index = 0;
+        esc.rpm = rpm;
+
+        sendUavcanMsg(dronecan.canard, esc);
+    }
+
+    // вивід у Serial (кожні 3 секунди)
+    if (now - lastSerial >= SERIAL_INTERVAL)
+    {
+        lastSerial = now;
+        Serial.print("Ultra-Precise RPM: ");
+        Serial.println(rpm);
+    }
+
+    dronecan.cycle();
+    IWatchdog.reload();
+}
